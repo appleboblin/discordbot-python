@@ -11,18 +11,21 @@ from discord.ext import commands
 from ollama import AsyncClient
 import ollama
 
+logger = settings.logging.getLogger("bot")
 
 def main():
+    # LM stuff
     client = AsyncClient(host=settings.LLM_ADDRESS)
 
+    # Discord stuff
     intents = discord.Intents.default()
     intents.message_content = True
-
-    bot = commands.Bot(command_prefix="!", intents=intents)
+    bot = commands.Bot(command_prefix="$", intents=intents)
 
     @bot.event
     async def on_ready():
         logger.info(f"User: {bot.user} (ID: {bot.user.id})")
+        await bot.change_presence(activity=discord. Activity(type=discord.ActivityType.playing, name='$help'))
 
     @bot.command(
         aliases = [ 'p' ],
@@ -34,6 +37,7 @@ def main():
     )
     async def ping(ctx):
         """ Answers with pong"""
+        logger.info(f"User: {ctx.message.author} (ID: {ctx.message.author.id}) ran then command !ping")
         await ctx.send("pong")
 
     # @bot.command()
@@ -42,6 +46,7 @@ def main():
 
     @bot.command()
     async def add(ctx, one : int, two : int):
+        logger.info(f"User: {ctx.message.author} (ID: {ctx.message.author.id}) ran then command !add")
         await ctx.send(one + two)
 
     @bot.command(
@@ -52,6 +57,7 @@ def main():
         hidden = False
     )
     async def chat(ctx, *args):
+        logger.info(f"User: {ctx.message.author} (ID: {ctx.message.author.id}) ran then command !chat with input {" ".join(args[:])}")
         message = {'role': 'user', 'content': f'{" ".join(args[:])}'}
         response = await client.chat(model='discord-bot:latest', messages=[message], stream=False)
         await ctx.send(response['message']['content'])
@@ -64,6 +70,7 @@ def main():
         hidden = False
     )
     async def img(ctx, *args):
+        logger.info(f"User: {ctx.message.author} (ID: {ctx.message.author.id}) ran then command !img with input {" ".join(args[:])}")
         url = ctx.message.attachments[0].url
         # Get image
         res = urllib3.request('GET', url)
@@ -86,5 +93,4 @@ def main():
     bot.run(settings.DISCORD_API_TOKEN, root_logger=True)
 
 if __name__ == "__main__":
-    logger = settings.logging.getLogger("bot")
     main()

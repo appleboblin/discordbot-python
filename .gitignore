@@ -1,3 +1,7 @@
+# created log file
+logs/
+infos.log
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
