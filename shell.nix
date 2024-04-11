@@ -6,7 +6,6 @@ mkShell {
             discordpy
             ollama
             python-dotenv
-            langchain-community
             pyvips
             wikipedia
             # duckduckgo-search

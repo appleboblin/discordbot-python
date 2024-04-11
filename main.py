@@ -9,6 +9,7 @@ import pyvips
 import discord
 from discord.ext import commands
 from ollama import AsyncClient
+import ollama
 
 
 def main():
@@ -35,21 +36,33 @@ def main():
         """ Answers with pong"""
         await ctx.send("pong")
 
-    @bot.command()
-    async def say(ctx, what = "Huh?"):
-        await ctx.send(what)
+    # @bot.command()
+    # async def say(ctx, what = "Huh?"):
+    #     await ctx.send(what)
 
     @bot.command()
     async def add(ctx, one : int, two : int):
         await ctx.send(one + two)
 
-    @bot.command()
+    @bot.command(
+        aliases = [ 'c' ],
+        help = "Send a prompt to LLM",
+        description = "Sends a user entered prompt to a LLM", 
+        enabled = True,
+        hidden = False
+    )
     async def chat(ctx, *args):
         message = {'role': 'user', 'content': f'{" ".join(args[:])}'}
-        response = await client.chat(model='discord-bot', messages=[message], stream=False)
+        response = await client.chat(model='discord-bot:latest', messages=[message], stream=False)
         await ctx.send(response['message']['content'])
 
-    @bot.command()
+    @bot.command(
+        aliases = [ 'i' ],
+        help = "Send a prompt and image to LLM",
+        description = "Sends a user entered prompt and attached to a LLM", 
+        enabled = True,
+        hidden = False
+    )
     async def img(ctx, *args):
         url = ctx.message.attachments[0].url
         # Get image
@@ -69,8 +82,6 @@ def main():
         response = await client.chat(model='llava', messages=[message], stream=False)
         os.remove(image_path)
         await ctx.send(response['message']['content'])
-
-
 
     bot.run(settings.DISCORD_API_TOKEN, root_logger=True)
 
