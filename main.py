@@ -96,7 +96,8 @@ class DiscordBot:
         intents = discord.Intents.default()
         intents.message_content = True
         # Set prefix and give permission
-        self._bot = commands.Bot(command_prefix="$", intents=intents)
+        self._prefix = "$"
+        self._bot = commands.Bot(command_prefix=self._prefix, intents=intents)
         # LLM
         self._llm_handler = _LLMHandler(settings.LLM_ADDRESS)
 
@@ -111,7 +112,7 @@ class DiscordBot:
         @self._bot.event
         async def on_ready():
             logger.info(f"User: {self._bot.user} (ID: {self._bot.user.id})")
-            await self._bot.change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name='$help'))
+            await self._bot.change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=f'{self._prefix}help'))
 
     def _register_commands(self):
         """
