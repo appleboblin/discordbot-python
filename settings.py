@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 DISCORD_API_TOKEN = os.getenv('DISCORD_TOKEN')
 LLM_ADDRESS = os.getenv('LLM_ADDRESS')
+IMG_ADDRESS = os.getenv('IMG_ADDRESS')
 
 # logging
 LOGGING_CONFIG = {

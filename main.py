@@ -1,6 +1,9 @@
 # Standard Library
 import urllib3
 import os
+import base64
+import json
+import requests
 
 # Third Party
 
@@ -79,6 +82,40 @@ class _LLMHandler:
         message = {'role': 'user', 'content': prompt, 'images': [image_path]}
         response = await self._client.chat(model='llava:13b', messages=[message], stream=False)
         os.remove(image_path)
+
+    async def generate_image(self, prompt, msg_id):
+        # Server url
+        url = settings.IMG_ADDRESS + '/sdapi/v1/txt2img'
+
+        # set image parameters
+        payload = {
+        "prompt": prompt,
+        "negative_prompt": "",
+        "sampler_index": "Euler a",
+        "width": 512,
+        "height": 512,
+        "batch_size": 1,
+        "steps": 20,
+        "seed": -1,
+        }
+
+        # send request to server
+        response = requests.post(url=url, json=payload)
+        if response.status_code == 200:
+            try:
+                r = response.json()
+                with open(f"{msg_id}.png", 'wb') as f:
+                    f.write(base64.b64decode(r['images'][0]))
+                return "success"
+            except KeyError:
+                # print("Error: 'images' key not found in response.")
+                # print("Response:", response.text)
+                return "img-key-404"
+        else:
+            # print("Failed to get a valid response from the server.")
+            # print("Status Code:", response.status_code)
+            # print("Response:", response.text)
+            return "no-valid-response"
 
 class DiscordBot:
     """
@@ -207,6 +244,37 @@ class DiscordBot:
                 await ctx.send(response)
             else:
                 await ctx.send("Please attach an image.")
+
+        @self._bot.command(
+            aliases=['d'],
+            help = "Generate image with text prompt",
+            description = "Sends a user entered text promp to stable diffusion to generate an image",
+            enabled = True,
+            hidden = False
+            )
+        async def dream(ctx, *args):
+            """
+            Sends text prompt to stable diffusion server and response with output.
+
+            Args:
+                ctx (Context): Message context.
+                args (str): String of user entered prompt.
+
+            Return:
+                None: Output response to chat.
+            """
+            prompt = ' '.join(args)
+            logger.info(f"{ctx.author} ran the command !dream with input {prompt}")
+            response = await self._llm_handler.generate_image(prompt, ctx.message.id)
+            if response == "success":
+                img_path = f'{ctx.message.id}.png'
+                file = discord.File(img_path)
+                await ctx.send(file = file, content = "Your requested image have been generated.")
+                os.remove(img_path)
+            elif response == "img-key-404":
+                print("Error: 'images' key not found in response.")
+            else:
+                await ctx.send("Failed to get a valid response from the server.")
 
     def run(self):
         """
