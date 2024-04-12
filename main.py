@@ -20,23 +20,23 @@ class _LLMHandler:
     """
     A private handler class that manages interaction with a language model
     """
-    
+
     def __init__(self, llm_address):
         """
         Initialize handler with specific address for the language model API call.
-        
+
         Attributes:
             _client (AsyncClient): Client for interacting with Ollama.
-        
+
         Args:
             llm_address (str): The address of the language model server
         """
         self._client = AsyncClient(host=llm_address)
 
     async def send_prompt(self, prompt):
-        """ 
+        """
         Send a text promp to the language model and return the response.
-        
+
         Args:
             prompt (str): Text promp to send to the language model.
 
@@ -49,9 +49,9 @@ class _LLMHandler:
 
     async def process_image_and_send_prompt(self, url, prompt, msg_id):
         """
-        Download attached image, process it and send to the language model with text prompt, 
+        Download attached image, process it and send to the language model with text prompt,
         and return the response.
-        
+
         Args:
             url (str): URL of the image attachment.
             prompt (str): Text prompt to send to the language model.
@@ -87,7 +87,7 @@ class DiscordBot:
     def __init__(self):
         """
         Initialize the Discord bot with settings.
-        
+
         Attributes:
             _bot (command.Bot): Command handling bot object.
             _llm_handler (_LLMHandler): Handler for language model interactions.
@@ -99,14 +99,14 @@ class DiscordBot:
         self._bot = commands.Bot(command_prefix="$", intents=intents)
         # LLM
         self._llm_handler = _LLMHandler(settings.LLM_ADDRESS)
-        
+
         # Listen to events and command
         self._register_events()
         self._register_commands()
 
     def _register_events(self):
         """
-        Register bot events such as when the bot is online and set presence. 
+        Register bot events such as when the bot is online and set presence.
         """
         @self._bot.event
         async def on_ready():
@@ -126,7 +126,7 @@ class DiscordBot:
         async def ping(ctx):
             """
             Respond with 'pong' to the "!ping' command.
-            
+
             Args:
                 ctx (Context): Message context.
             """
@@ -141,7 +141,7 @@ class DiscordBot:
         async def add(ctx, one: int, two: int):
             """
             Adds two numbers provided and send the result.
-            
+
             Args:
                 ctx (Context): Message context.
                 one (int): First number.
@@ -162,9 +162,9 @@ class DiscordBot:
             )
         async def chat(ctx, *args):
             """
-            Takes user text input and sends to the langeage model and response  
+            Takes user text input and sends to the langeage model and response
             with model output.
-            
+
             Args:
                 ctx (Context): Message context.
                 args (str): String of user entered prompt.
@@ -188,7 +188,7 @@ class DiscordBot:
         async def img(ctx, *args):
             """
             Sends image URL and text prompt to the language model and response with output.
-            
+
             Args:
                 ctx (Context): Message context.
                 args (str): String of user entered prompt.
