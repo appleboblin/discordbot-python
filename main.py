@@ -1,15 +1,16 @@
 # Standard Library
-import urllib3
+import asyncio
+import aiohttp
+import aiofiles
 import os
 import base64
 import json
 import requests
 
 # Third Party
-
-# Application Specific
 import settings
 
+# Application Specific
 import pyvips
 import discord
 from discord.ext import commands
@@ -63,14 +64,18 @@ class _LLMHandler:
         Returns:
             str: Response content from the language model after processing the image.
         """
-        # Process URL
-        http = urllib3.PoolManager()
-        res = http.request('GET', url)
-        file_name = url.split("/")[-1]
-
-        # Save image
-        with open(file_name, 'wb') as f:
-            f.write(res.data)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    # process url
+                    file_name = url.split("/")[-1]
+                    # Save images
+                    async with aiofiles.open(file_name, 'wb') as f:
+                        while True:
+                            chunk = await response.content.read(1024)
+                            if not chunk:
+                                break
+                            await f.write(chunk)
 
         # Convert image to JPG
         image = pyvips.Image.new_from_file(file_name, access="sequential")
@@ -82,6 +87,7 @@ class _LLMHandler:
         message = {'role': 'user', 'content': prompt, 'images': [image_path]}
         response = await self._client.chat(model='llava:13b', messages=[message], stream=False)
         os.remove(image_path)
+        return response['message']['content']
 
     async def generate_image(self, prompt, msg_id):
         # Server url
@@ -100,22 +106,19 @@ class _LLMHandler:
         }
 
         # send request to server
-        response = requests.post(url=url, json=payload)
-        if response.status_code == 200:
-            try:
-                r = response.json()
-                with open(f"{msg_id}.png", 'wb') as f:
-                    f.write(base64.b64decode(r['images'][0]))
-                return "success"
-            except KeyError:
-                # print("Error: 'images' key not found in response.")
-                # print("Response:", response.text)
-                return "img-key-404"
-        else:
-            # print("Failed to get a valid response from the server.")
-            # print("Status Code:", response.status_code)
-            # print("Response:", response.text)
-            return "no-valid-response"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as response:
+                if response.status == 200:
+                    try:
+                        data = await response.json()
+                        img_data = base64.b64decode(data['images'][0])
+                        with open(f"{msg_id}.png", 'wb') as f:
+                            f.write(img_data)
+                        return "success"
+                    except KeyError:
+                        return "img-key-404"
+                else:
+                    return "no-valid-response"
 
 class DiscordBot:
     """
@@ -137,8 +140,6 @@ class DiscordBot:
         self._bot = commands.Bot(command_prefix=self._prefix, intents=intents)
         # LLM
         self._llm_handler = _LLMHandler(settings.LLM_ADDRESS)
-
-        # Listen to events and command
         self._register_events()
         self._register_commands()
 
@@ -163,12 +164,12 @@ class DiscordBot:
             )
         async def ping(ctx):
             """
-            Respond with 'pong' to the "!ping' command.
+            Respond with 'pong' to the "ping' command.
 
             Args:
                 ctx (Context): Message context.
             """
-            logger.info(f"{ctx.author} ran the command !ping")
+            logger.info(f"{ctx.author} ran the command {self._prefix}ping")
             await ctx.send("pong")
 
         @self._bot.command(
@@ -176,7 +177,9 @@ class DiscordBot:
             enabled = True,
             hidden = False
         )
-        async def add(ctx, one: int, two: int):
+        async def add(ctx,
+                    one: str = commands.parameter(default="0", description="First number"),
+                    two: str = commands.parameter(default="0", description="Second number")):
             """
             Adds two numbers provided and send the result.
 
@@ -186,9 +189,19 @@ class DiscordBot:
                 two (int): Second number.
 
             Return:
-                None: Output added number to the chat
+                None: Output added number to the chat.
             """
-            logger.info(f"{ctx.author} ran the command !add")
+            logger.info(f"{ctx.author} ran the command {self._prefix}add")
+            # Check if entered are numbers
+            try:
+                one = float(one)
+                two = float(two)
+            except ValueError:
+                await ctx.send("Please enter valid integers.")
+                return
+            # Convert floats to integers if they have no fractional part
+            one = int(one) if one.is_integer() else one
+            two = int(two) if two.is_integer() else two
             await ctx.send(one + two)
 
         @self._bot.command(
@@ -211,9 +224,9 @@ class DiscordBot:
             Return:
                 None: Output response to chat.
             """
-            prompt = ' '.join(args)
-            logger.info(f"{ctx.author} ran the command !chat with input {prompt}")
-            response = await self._llm_handler.send_prompt(prompt)
+            input_prompt = ' '.join(args)
+            logger.info(f"{ctx.author} ran the command {self._prefix}chat with input '{input_prompt}'")
+            response = await self._llm_handler.send_prompt(input_prompt)
             await ctx.send(response)
 
         @self._bot.command(
@@ -236,7 +249,7 @@ class DiscordBot:
                 None: Output response to chat.
             """
             prompt = ' '.join(args)
-            logger.info(f"{ctx.author} ran the command !img with input {prompt}")
+            logger.info(f"{ctx.author} ran the command {self._prefix}img with input {prompt}")
             # Get attachment url, if no url, return error.
             if ctx.message.attachments:
                 url = ctx.message.attachments[0].url
@@ -264,7 +277,7 @@ class DiscordBot:
                 None: Output response to chat.
             """
             prompt = ' '.join(args)
-            logger.info(f"{ctx.author} ran the command !dream with input {prompt}")
+            logger.info(f"{ctx.author} ran the command {self._prefix}dream with input {prompt}")
             response = await self._llm_handler.generate_image(prompt, ctx.message.id)
             if response == "success":
                 img_path = f'{ctx.message.id}.png'
