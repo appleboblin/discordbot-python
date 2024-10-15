@@ -8,7 +8,7 @@ url = 'http://192.168.2.100:7860/sdapi/v1/txt2img'
 payload = {
   "prompt": "ultra realistic close up portrait ((beautiful pale cyberpunk female with heavy black eyeliner))",
   "negative_prompt": "",
- "sampler_index": "Euler a",
+  "sampler_index": "Euler a",
   "width": 512,
   "height": 512,
   "batch_size": 1,
