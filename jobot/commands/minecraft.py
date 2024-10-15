@@ -99,7 +99,7 @@ def mc_commands(bot):
             else:
                 await ctx.send("Stopping the server... Please wait.")
                 # Connect via SSH and stop the Minecraft server
-                await execute_ssh_command("screen -S minecraft -X '/stop\n'")
+                await execute_ssh_command("screen -S minecraft -X stuff '/stop\n'")
                 await asyncio.sleep(15)  # Wait for the Minecraft server to stop
                 proxmox.nodes('pve1').qemu('105').status.stop.post()
                 await ctx.send("Server stopped successfully.")
@@ -111,7 +111,7 @@ def mc_commands(bot):
             else:
                 await ctx.send("Restarting the server... Please wait.")
                 # Connect via SSH and stop Minecraft before restarting VM
-                await execute_ssh_command("screen -S minecraft -X '/stop\n'")
+                await execute_ssh_command("screen -S minecraft -X stuff '/stop\n'")
                 proxmox.nodes('pve1').qemu('105').status.reboot.post()
                 await asyncio.sleep(40)  # Wait for the server to restart
                 await ctx.send("Server restarted successfully.")

@@ -16,7 +16,7 @@ sshcon.connect(hostname, username=user, key_filename=SSHK) # no passwd needed
 # print(_stdout.read().decode())  # Output from the command
 
 # Reattach to the screen session and run a command inside it
-_stdin, _stdout, _stderr = sshcon.exec_command("screen -S minecraft -X '/stop\n'", get_pty=True)
+_stdin, _stdout, _stderr = sshcon.exec_command("screen -S minecraft -X stuff '/stop\n'", get_pty=True)
 print(_stdout.read().decode())
 
 # Close the SSH connection
