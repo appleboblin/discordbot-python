@@ -21,6 +21,7 @@ class DiscordBot:
             _bot (command.Bot): Command handling bot object.
         """
         intents = discord.Intents.default()
+        intents.members = True
         intents.message_content = True
         self._prefix = "$"
         self._bot = commands.Bot(command_prefix=self._prefix, intents=intents)
@@ -42,11 +43,28 @@ class DiscordBot:
         misc_commands(self._bot)
         mc_commands(self._bot)
 
-    def run(self):
+    def run(self, max_retries=30, delay=30):
         """
-        Run Discord bot using token from settings.
+        Run Discord bot using token from settings, with retry on failure.
+
+        Args:
+            max_retries (int): Maximum number of retries before giving up.
+            delay (int): Delay between retries in seconds.
         """
-        self._bot.run(settings.DISCORD_API_TOKEN, root_logger=True)
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                logger.info("Starting Discord bot...")
+                self._bot.run(settings.DISCORD_API_TOKEN, root_logger=True)
+            except discord.DiscordException as e:
+                attempt += 1
+                logger.error(f"Failed to connect to Discord (Attempt {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    logger.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    logger.error("Max retries reached. Exiting.")
+                    break
 
 def main():
     bot = DiscordBot()
