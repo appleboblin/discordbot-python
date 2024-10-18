@@ -19,6 +19,7 @@ cryptography==43.0.0
 cycler==0.12.1
 defusedxml==0.8.0rc2
 discord.py==2.4.0
+dnspython==2.6.1
 flake8==7.1.1
 fonttools==4.53.1
 frozenlist==1.4.1
@@ -30,12 +31,12 @@ imutils==0.5.4
 kiwisolver==1.4.5
 matplotlib==3.9.1
 mccabe==0.7.0
+minestat==2.6.3
 multidict==6.0.5
 mypy_extensions==1.0.0
 numpy==1.26.4
 olefile==0.47
 ollama==0.3.3
-opencv @ file:///build/source/modules/python/package/dist/opencv-4.9.0-py3-none-any.whl#sha256=0b1c6093b66ec745df186877df1e6e72241dfe8dda392f023bc361fe1d5411ca
 packaging==24.1
 paramiko==3.4.0
 pathspec==0.12.1
