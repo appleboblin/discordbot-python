@@ -31,6 +31,7 @@ imutils==0.5.4
 kiwisolver==1.4.5
 matplotlib==3.9.1
 mccabe==0.7.0
+mcrcon==0.7.0
 minestat==2.6.3
 multidict==6.0.5
 mypy_extensions==1.0.0
