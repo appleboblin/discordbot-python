@@ -7,6 +7,7 @@ from proxmoxer import ProxmoxAPI, ResourceException
 import asyncio
 import minestat
 import discord
+from mcrcon import MCRcon
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +20,7 @@ SSH_HOSTNAME = os.getenv('SSH_HOST')
 SSH_USER = os.getenv('SSH_USER')
 SSH_KEY = os.getenv('SSHK')
 MC_HOST = os.getenv('MINECRAFT_ADDRESS')
+RCON_PASSWORD = os.getenv('MC_RCON_PASSWORD')
 
 # Initialize logger
 logger = logging.getLogger("bot")
@@ -67,9 +69,17 @@ async def execute_ssh_command(command):
     
     # Execute the command
     _stdin, _stdout, _stderr = sshcon.exec_command(command, get_pty=True)
-    output = _stdout.read().decode()
+    output = _stdout.readlines()
     logger.info(f'SSH output: {output}')
     sshcon.close()
+    return output  # Return the last line
+
+async def execute_rcon_command(ctx, command):
+    """Execute a command via rcon to mc server"""
+    with MCRcon(MC_HOST, RCON_PASSWORD) as mcr:
+        resp = mcr.command(command)
+    if resp:
+        await ctx.send(resp)
 
 async def check_minecraft_status():
     """
@@ -120,7 +130,7 @@ async def start_server(ctx):
             mc_status = await check_minecraft_status()
             if not mc_status.online:
                 logger.info(f'MC not started')
-                await execute_ssh_command("screen -S minecraft -X stuff 'java -Xmx11G -Xms11G -jar minecraft_server.jar nogui\n'")
+                await execute_rcon_command(ctx, "/stop")
                 logger.info(f'Starting TFG server')
                 await asyncio.sleep(26)
                 for _ in range(7):
@@ -138,7 +148,7 @@ async def start_server(ctx):
         else:
             mc_status = await check_minecraft_status()
             if not mc_status.online:
-                await execute_ssh_command("screen -S minecraft -X stuff 'java -Xmx11G -Xms11G -jar minecraft_server.jar nogui\n'")
+                await execute_ssh_command("/home/applebbolin/start-screen")
                 logger.info(f'Starting TFG server')
                 await asyncio.sleep(26)
                 for _ in range(7):
@@ -170,26 +180,39 @@ async def stop_server(ctx):
             await ctx.send("Server is already stopped.")
         else:
             await ctx.send("Stopping the server... Please wait.")
-            # Stop Minecraft via SSH first
-            await execute_ssh_command("screen -S minecraft -X stuff '/stop\n'")
-            logger.info(f'Stopping TFG server')
-            await asyncio.sleep(10)  # Wait for Minecraft to stop
-            for _ in range(7):
-                mc_status = await check_minecraft_status()
-                if not mc_status.online:
-                    proxmox = connect_to_proxmox()
-                    proxmox.nodes('pve1').qemu('105').status.stop.post()
-                    logger.info(f'Stopping proxmox 105')
+            try:
+                rcon_output = await execute_rcon_command(ctx, "/stop")
+                logger.info(f'{rcon_output}')
+                await asyncio.sleep(10)  # Wait for Minecraft to stop
+                for _ in range(7):
+                    mc_status = await check_minecraft_status()
+                    if not mc_status.online:
+                        proxmox = connect_to_proxmox()
+                        proxmox.nodes('pve1').qemu('105').status.stop.post()
+                        logger.info(f'Stopping proxmox 105')
+                        await asyncio.sleep(5)
+                        if await wait_vm_status("stopped"):
+                            logger.info(f'Proxmox 105 stopped')
+                            await ctx.send("Server stopped successfully.")
+                            return
+                        else: 
+                            logger.info(f'Proxmox stopped failed')
+                            await ctx.send("VM stopped failed.")
+                            return
                     await asyncio.sleep(5)
-                    if await wait_vm_status("stopped"):
-                        logger.info(f'Proxmox 105 stopped')
-                        await ctx.send("Server stopped successfully.")
-                        return
-                    else: 
-                        logger.info(f'Proxmox stopped failed')
-                        await ctx.send("VM stopped failed.")
-                        return
+            except:
+                proxmox = connect_to_proxmox()
+                proxmox.nodes('pve1').qemu('105').status.stop.post()
+                logger.info(f'Stopping proxmox 105')
                 await asyncio.sleep(5)
+                if await wait_vm_status("stopped"):
+                    logger.info(f'Proxmox 105 stopped')
+                    await ctx.send("Server stopped successfully.")
+                    return
+                else: 
+                    logger.info(f'Proxmox stopped failed')
+                    await ctx.send("VM stopped failed.")
+                    return
     except Exception as e:
         logger.info(f"Failed to stop the server: {e}")
         await ctx.send(f"Failed to stop the server: {e}")
@@ -210,12 +233,11 @@ async def restart_server(ctx):
             await ctx.send("Restarting the server... Please wait.")
             await stop_server(ctx)
             await start_server(ctx)
-            await ctx.send("Server restarted successfully.")
     except Exception as e:
         logger.info(f'Failed to restart the server: {e}')
         await ctx.send(f"Failed to restart the server: {e}")
 
-async def server_status(ctx):
+async def server_status(ctx, delay=0):
     """
     Get status of minecraft server
     
@@ -226,6 +248,7 @@ async def server_status(ctx):
     embed_wait=discord.Embed(title="Server Status", description="Checking server status... Please wait", color=0xf6d32d)
     embed_wait.add_field(name="Status", value="Checking", inline=True)
     waiting_embed = await ctx.send(embed=embed_wait)
+    await asyncio.sleep(delay)
     vm_status = await check_vm_status()
     mc_status = await check_minecraft_status()
 
@@ -254,6 +277,60 @@ async def server_status(ctx):
         embed.add_field(name="Status", value=f"VM status: {vm_status}", inline=True)
         await waiting_embed.edit(embed=embed)
 
+async def download_update(ctx):
+    """
+    Run bash script on server to download latest tfg update
+    
+    Args:
+        ctx (Context): The message context.
+    """
+    try:
+        vm_status = await get_vm_status()
+        if vm_status == 'running':
+            await ctx.send("Downloading update...")
+            output = await execute_ssh_command("/home/appleboblin/update.sh")
+            await ctx.send(f"{output[-1]}")
+        else:
+            await ctx.send("Please start the server first.")
+    except Exception as e:
+        logger.info(f'Failed to execute script: {e}')
+        await ctx.send(f"Failed to execute script: {e}")
+
+async def update_mc_server(ctx, arg1, arg2):
+    """Execute a commands via SSH to update MC server"""
+    sshcon = paramiko.SSHClient()
+    sshcon.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    sshcon.connect(SSH_HOSTNAME, username=SSH_USER, key_filename=SSH_KEY)
+    await execute_rcon_command(ctx, "/stop")
+    await asyncio.sleep(10)
+    await ctx.send(f"Updating server...")
+    # Move world
+    try:
+        move_files = (
+            f'cp -pf "/home/appleboblin/tfg{arg1}/.minecraft/server.properties" "/home/appleboblin/tfg{arg2}/.minecraft/server.properties" && '
+            f'cp -pf "/home/appleboblin/tfg{arg1}/.minecraft/config/ftbbackups2.json" "/home/appleboblin/tfg{arg2}/.minecraft/config/ftbbackups2.json" && '
+            f'mkdir -p "/home/appleboblin/tfg{arg2}/.minecraft/world/" && '
+            f'cp -rpf "/home/appleboblin/tfg{arg1}/.minecraft/world/"* "/home/appleboblin/tfg{arg2}/.minecraft/world/"'
+        )
+        _stdin, _stdout, _stderr = sshcon.exec_command(move_files, get_pty=True)
+        output = _stdout.readlines()
+        logger.info(f'copying world from {arg1} to {arg2}: {output}')
+        _stdin, _stdout, _stderr = sshcon.exec_command('screen -X -S minecraft quit', get_pty=True)
+        output = _stdout.readlines()
+        logger.info(f'killed minecraft screen instance')
+        replace_starter = f"sed -i 's/{arg1}/{arg2}/g' /home/appleboblin/start-screen"
+        _stdin, _stdout, _stderr = sshcon.exec_command(replace_starter, get_pty=True)
+        output = _stdout.readlines()
+        logger.info(f'update start-screen script')
+        _stdin, _stdout, _stderr = sshcon.exec_command('/home/appleboblin/start-screen', get_pty=True)
+        output = _stdout.readlines()
+        logger.info(f'run start-screen script')
+        await ctx.send(f"Updated modpack from v{arg1} to v{arg2}, starting server.")
+        await server_status(ctx, delay=55)
+    except Exception as e:
+        await ctx.send(f"Failed to upgrade modpack: {e}")
+    sshcon.close()
+
 
 def mc_commands(bot):
     """
@@ -266,13 +343,14 @@ def mc_commands(bot):
         enabled=True,
         hidden=False
     )
-    async def tfg(ctx, cmd: str = None):
+    async def tfg(ctx, cmd: str = None, *args):
         """
         Allow user to start, stop and restart the TFG Minecraft server
 
         Args:
             ctx (Context): Message context.
             cmd (str): Action.
+            args (tuple): Additional arguments for 'commands'
 
         Returns:
             None: Outputs response to chat.
@@ -293,5 +371,19 @@ def mc_commands(bot):
             await stop_server(ctx)
         elif cmd == 'restart':
             await restart_server(ctx)
+        elif cmd == 'command':
+            server_command = ' '.join(args) 
+            logger.info(f"{server_command}")
+            await execute_rcon_command(ctx, server_command)
+        elif cmd == 'download':
+            await download_update(ctx)
+        elif cmd == 'update':
+            # Check if args has enough elements
+            if len(args) < 2:
+                await ctx.send("Please provide old version and new version of the mod.")
+                return
+            arg1, arg2 = args[0], args[1]
+            print(arg1 + ' ' + arg2)
+            await update_mc_server(ctx, arg1, arg2)
         else:
-            await ctx.send("Invalid command. Please use 'start', 'stop', or 'restart'.")
+            await ctx.send("Invalid command. Please use 'start', 'stop', 'restart', 'command', 'downlaod'.")
