@@ -326,7 +326,7 @@ async def update_mc_server(ctx, arg1, arg2):
         output = _stdout.readlines()
         logger.info(f'run start-screen script')
         await ctx.send(f"Updated modpack from v{arg1} to v{arg2}, starting server.")
-        await server_status(ctx, delay=55)
+        await server_status(ctx, delay=70)
     except Exception as e:
         await ctx.send(f"Failed to upgrade modpack: {e}")
     sshcon.close()
